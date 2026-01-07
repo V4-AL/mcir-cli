@@ -12,14 +12,6 @@ pub enum ModuleCategoryEnum {
     Interceptor,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum SchemaTypeEnum {
-    Openapi,
-    Asyncapi,
-    Jsonschema,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct ConfigV1 {
     #[serde(default = "default_manifest_version")]
@@ -27,6 +19,10 @@ pub struct ConfigV1 {
 
     #[validate(nested)]
     pub package: PackageConfig,
+
+    #[serde(default)]
+    #[validate(nested)]
+    pub hook: Vec<ModuleConfig>,
 
     #[serde(default)]
     #[validate(nested)]
@@ -45,11 +41,10 @@ pub struct ConfigV1 {
 pub struct PackageConfig {
     #[validate(length(min = 3, max = 64))]
     #[validate(regex(path = *NAME_REGEX))]
-    pub name: String,
+    pub id: String,
 
-    #[serde(default = "default_package_version")]
-    #[validate(regex(path = *SEMVER_REGEX))]
-    pub version: String,
+    #[validate(length(min = 3, max = 64))]
+    pub name: String,
 
     #[serde(default)]
     #[validate(length(max = 500))]
@@ -64,16 +59,20 @@ pub struct PackageConfig {
     pub categories: Vec<ModuleCategoryEnum>,
 
     #[serde(default)]
-    #[validate(custom(function = "validate_authors"))]
-    pub authors: Vec<String>,
-
-    #[serde(default)]
     #[validate(url)]
     pub repository: Option<String>,
 
     #[serde(default)]
     #[validate(url)]
     pub homepage: Option<String>,
+
+    #[serde(default = "default_package_version")]
+    #[validate(regex(path = *SEMVER_REGEX))]
+    pub version: String,
+
+    #[serde(default)]
+    #[validate(custom(function = "validate_authors"))]
+    pub authors: Vec<String>,
 
     #[serde(default)]
     pub license: Option<String>,
@@ -90,18 +89,14 @@ pub struct PackageConfig {
     #[validate(custom(function = "validate_path_exists"))]
     pub changelog: Option<PathBuf>,
 
+    #[validate(custom(function = "validate_path_exists"))]
+    pub wasm: Option<PathBuf>,
+
     #[serde(default)]
     pub publish: Vec<String>,
 
     #[serde(default)]
     pub build: Option<String>,
-
-    #[serde(default = "default_package_abi_version")]
-    #[validate(regex(path = *SEMVER_REGEX))]
-    pub abi_version: String,
-
-    #[validate(custom(function = "validate_path_exists"))]
-    pub wasm: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
@@ -110,11 +105,8 @@ pub struct ModuleConfig {
     #[validate(regex(path = *NAME_REGEX))]
     pub name: String,
 
-    #[validate(custom(function = "validate_path_exists"))]
-    pub schema: PathBuf,
-
-    #[serde(default = "default_module_schema_type")]
-    pub schema_type: SchemaTypeEnum,
+    #[serde(default = "default_module_enabled")]
+    pub enabled: bool,
 }
 
 fn default_manifest_version() -> u8 {
@@ -125,12 +117,8 @@ fn default_package_version() -> String {
     "0.0.0".to_string()
 }
 
-fn default_package_abi_version() -> String {
-    "0.2.0".to_string()
-}
-
-fn default_module_schema_type() -> SchemaTypeEnum {
-    SchemaTypeEnum::Jsonschema
+fn default_module_enabled() -> bool {
+    true
 }
 
 fn validate_authors(authors: &[String]) -> std::result::Result<(), ValidationError> {
@@ -176,8 +164,8 @@ impl ConfigVersion for ConfigV1 {
     fn validate(&self) -> Result<()> {
         Validate::validate(self).map_err(|e| ConfigError::Validation(e.to_string()))?;
 
-        self.validate_manifest_version()?;
         self.validate_has_modules()?;
+        self.validate_manifest_version()?;
         self.validate_unique_module_names()?;
         self.validate_license_specification()?;
 
@@ -206,15 +194,6 @@ impl ConfigV1 {
             resolve(path);
         }
 
-        for module in self.server.iter_mut() {
-            resolve(&mut module.schema);
-        }
-        for module in self.sandbox.iter_mut() {
-            resolve(&mut module.schema);
-        }
-        for module in self.interceptor.iter_mut() {
-            resolve(&mut module.schema);
-        }
     }
 
     fn validate_manifest_version(&self) -> std::result::Result<(), ConfigError> {
