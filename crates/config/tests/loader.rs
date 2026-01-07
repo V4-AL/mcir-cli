@@ -8,12 +8,12 @@ fn test_load_config_success() {
     let content = r#"
 manifest_version = 1
 [package]
-name = "test-package"
+id = "test-package"
+name = "Test Package"
 version = "0.1.0"
 license = "MIT"
 [[server]]
 name = "my-server"
-schema = "schema.json"
 "#;
     let temp_file = create_temp_config_file(content);
     let schema_path = temp_file.path().parent().unwrap().join("schema.json");
@@ -22,7 +22,8 @@ schema = "schema.json"
 
     let config = load_config(temp_file.path()).unwrap();
 
-    assert_eq!(config.package.name, "test-package");
+    assert_eq!(config.package.id, "test-package");
+    assert_eq!(config.package.name, "Test Package");
 }
 
 #[test]
@@ -58,15 +59,14 @@ fn test_load_config_validation_error() {
     let content = r#"
 manifest_version = 1
 [package]
-name = "test-package"
+id = "test-package"
+name = "Test Package"
 version = "0.1.0"
 license = "MIT"
 [[server]]
 name = "my-server"
-schema = "schema.json"
 [[server]]
 name = "my-server" # duplicate name
-schema = "schema.json"
 "#;
     let temp_file = create_temp_config_file(content);
     let schema_path = temp_file.path().parent().unwrap().join("schema.json");

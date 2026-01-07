@@ -193,7 +193,6 @@ impl ConfigV1 {
         if let Some(path) = &mut self.package.wasm {
             resolve(path);
         }
-
     }
 
     fn validate_manifest_version(&self) -> std::result::Result<(), ConfigError> {

@@ -1,34 +1,31 @@
-use mcim_config::{
-    ConfigError, ConfigV1, ModuleConfig, PackageConfig, SchemaTypeEnum, writer::write_config,
-};
-use std::path::Path;
+use mcim_config::{ConfigError, ConfigV1, ModuleConfig, PackageConfig, writer::write_config};
 use tempfile::tempdir;
 
-fn basic_config(schema_file: &Path) -> ConfigV1 {
+fn basic_config() -> ConfigV1 {
     ConfigV1 {
         manifest_version: 1,
         package: PackageConfig {
-            name: "test-package".to_string(),
-            version: "0.1.0".to_string(),
+            id: "test-package".to_string(),
+            name: "Test Package".to_string(),
             description: "A test package".to_string(),
-            keywords: vec![],
             categories: vec![],
-            authors: vec![],
+            keywords: vec![],
             repository: None,
             homepage: None,
+            version: "0.1.0".to_string(),
+            authors: vec![],
             license: Some("MIT".to_string()),
             license_file: None,
             readme: None,
             changelog: None,
+            wasm: None,
             publish: vec![],
             build: None,
-            abi_version: "0.1.0".to_string(),
-            wasm: None,
         },
+        hook: vec![],
         server: vec![ModuleConfig {
             name: "my-server".to_string(),
-            schema: schema_file.to_path_buf(),
-            schema_type: SchemaTypeEnum::Jsonschema,
+            enabled: true,
         }],
         sandbox: vec![],
         interceptor: vec![],
@@ -38,11 +35,8 @@ fn basic_config(schema_file: &Path) -> ConfigV1 {
 #[test]
 fn test_write_config_success() {
     let temp_dir = tempdir().unwrap();
-    let schema_path = temp_dir.path().join("schema.json");
 
-    std::fs::write(&schema_path, "{}").unwrap();
-
-    let config = basic_config(&schema_path);
+    let config = basic_config();
     let output_path = temp_dir.path().join("config.toml");
     let result = write_config(&config, &output_path);
 
@@ -51,6 +45,7 @@ fn test_write_config_success() {
     let content = std::fs::read_to_string(&output_path).unwrap();
     let loaded_config: ConfigV1 = toml::from_str(&content).unwrap();
 
+    assert_eq!(config.package.id, loaded_config.package.id);
     assert_eq!(config.package.name, loaded_config.package.name);
     assert_eq!(config.server[0].name, loaded_config.server[0].name);
 }
@@ -62,7 +57,7 @@ fn test_write_config_permission_denied() {
 
     std::fs::write(&schema_path, "{}").unwrap();
 
-    let config = basic_config(&schema_path);
+    let config = basic_config();
     let read_only_dir = tempdir().unwrap();
     let mut perms = std::fs::metadata(read_only_dir.path())
         .unwrap()

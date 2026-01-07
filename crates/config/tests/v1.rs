@@ -1,44 +1,42 @@
 mod common;
-use crate::common::create_temp_config_file;
-use mcim_config::{
-    ConfigV1, ConfigVersion, ModuleCategoryEnum, ModuleConfig, PackageConfig, SchemaTypeEnum,
-};
+
+use mcim_config::{ConfigV1, ConfigVersion, ModuleCategoryEnum, ModuleConfig, PackageConfig};
 use std::path::PathBuf;
 
 fn basic_package_config() -> PackageConfig {
     PackageConfig {
-        name: "test-package".to_string(),
-        version: "0.1.0".to_string(),
+        id: "test-package".to_string(),
+        name: "Test Package".to_string(),
         description: "A test package".to_string(),
         keywords: vec![],
         categories: vec![],
-        authors: vec![],
         repository: None,
         homepage: None,
+        version: "0.1.0".to_string(),
+        authors: vec![],
         license: Some("MIT".to_string()),
         license_file: None,
         readme: None,
         changelog: None,
+        wasm: None,
         publish: vec![],
         build: None,
-        abi_version: "0.1.0".to_string(),
-        wasm: None,
     }
 }
 
-fn basic_module_config(name: &str, schema_file: &PathBuf) -> ModuleConfig {
+fn basic_module_config(name: &str) -> ModuleConfig {
     ModuleConfig {
         name: name.to_string(),
-        schema: schema_file.clone(),
-        schema_type: SchemaTypeEnum::Jsonschema,
+        enabled: true,
     }
 }
 
-fn basic_config(schema_file: &PathBuf) -> ConfigV1 {
+fn basic_config() -> ConfigV1 {
     ConfigV1 {
         manifest_version: 1,
         package: basic_package_config(),
-        server: vec![basic_module_config("my-server", schema_file)],
+        hook: vec![],
+        server: vec![basic_module_config("my-server")],
         sandbox: vec![],
         interceptor: vec![],
     }
@@ -46,8 +44,7 @@ fn basic_config(schema_file: &PathBuf) -> ConfigV1 {
 
 #[test]
 fn test_validate_manifest_version() {
-    let schema_file = create_temp_config_file("{}");
-    let mut config = basic_config(&schema_file.path().to_path_buf());
+    let mut config = basic_config();
 
     config.manifest_version = 2;
 
@@ -60,8 +57,7 @@ fn test_validate_manifest_version() {
 
 #[test]
 fn test_validate_has_modules() {
-    let schema_file = create_temp_config_file("{}");
-    let mut config = basic_config(&schema_file.path().to_path_buf());
+    let mut config = basic_config();
 
     config.server = vec![];
 
@@ -70,19 +66,16 @@ fn test_validate_has_modules() {
 
 #[test]
 fn test_validate_unique_module_names() {
-    let schema_file = create_temp_config_file("{}");
-    let schema_path = schema_file.path().to_path_buf();
-    let mut config = basic_config(&schema_path);
+    let mut config = basic_config();
 
-    config.sandbox = vec![basic_module_config("my-server", &schema_path)];
+    config.sandbox = vec![basic_module_config("my-server")];
 
     assert!(config.validate().is_err());
 }
 
 #[test]
 fn test_validate_license_specification() {
-    let schema_file = create_temp_config_file("{}");
-    let mut config = basic_config(&schema_file.path().to_path_buf());
+    let mut config = basic_config();
 
     config.package.license = None;
 
@@ -91,8 +84,7 @@ fn test_validate_license_specification() {
 
 macro_rules! test_validation {
     ($field:ident, $value:expr, $should_pass:expr) => {
-        let schema_file = create_temp_config_file("{}");
-        let mut config = basic_config(&schema_file.path().to_path_buf());
+        let mut config = basic_config();
 
         config.package.$field = $value;
 
@@ -106,13 +98,14 @@ macro_rules! test_validation {
 
 #[test]
 fn test_package_config_validation() {
+    test_validation!(id, "a".to_string(), false);
+    test_validation!(id, "a".repeat(65), false);
+    test_validation!(id, "Invalid-Name".to_string(), false);
     test_validation!(name, "a".to_string(), false);
     test_validation!(name, "a".repeat(65), false);
-    test_validation!(name, "Invalid-Name".to_string(), false);
-    test_validation!(version, "1.0".to_string(), false);
     test_validation!(description, "a".repeat(501), false);
     test_validation!(keywords, vec!["a".to_string(); 6], false);
-    test_validation!(categories, vec![ModuleCategoryEnum::Server; 4], false);
+    test_validation!(categories, vec![ModuleCategoryEnum::Server; 5], false);
     test_validation!(authors, vec!["<invalid>".to_string()], false);
     test_validation!(repository, Some("invalid-url".to_string()), false);
     test_validation!(homepage, Some("invalid-url".to_string()), false);
@@ -120,8 +113,7 @@ fn test_package_config_validation() {
 
 #[test]
 fn test_path_exists_validation() {
-    let schema_file = create_temp_config_file("{}");
-    let mut config = basic_config(&schema_file.path().to_path_buf());
+    let mut config = basic_config();
 
     config.package.license_file = Some(PathBuf::from("non-existent-file"));
 
@@ -139,19 +131,15 @@ fn test_defaults() {
     let config: ConfigV1 = toml::from_str(
         r#"
 [package]
-name = "test-package"
+id = "test-package"
+name = "Test Package"
 license = "MIT"
 [[server]]
 name = "my-server"
-schema = "schema.json"
 "#,
     )
     .unwrap();
     assert_eq!(config.manifest_version, 1);
     assert_eq!(config.package.version, "0.0.0");
-    assert_eq!(config.package.abi_version, "0.2.0");
-    assert!(matches!(
-        config.server[0].schema_type,
-        SchemaTypeEnum::Jsonschema
-    ));
+    assert!(config.server[0].enabled);
 }
