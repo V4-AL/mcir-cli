@@ -6,6 +6,7 @@ use validator::{Validate, ValidationError};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ModuleCategoryEnum {
+    Hook,
     Server,
     Sandbox,
     Interceptor,
@@ -59,7 +60,7 @@ pub struct PackageConfig {
     pub keywords: Vec<String>,
 
     #[serde(default)]
-    #[validate(length(max = 3))]
+    #[validate(length(max = 4))]
     pub categories: Vec<ModuleCategoryEnum>,
 
     #[serde(default)]
